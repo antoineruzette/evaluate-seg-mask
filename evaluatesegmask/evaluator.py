@@ -5,8 +5,29 @@ import scipy.optimize
 import pandas as pd
 import requests
 import socket
+import os
+import pkg_resources
 
 LEADERBOARD_URL = "https://liveboard-bobiac.onrender.com/update"
+
+def get_default_gt_path(filename="001_masks.png"):
+    """Get the path to a default ground truth mask file.
+    
+    Args:
+        filename (str): Name of the ground truth file to get
+        
+    Returns:
+        str: Full path to the ground truth file
+    """
+    try:
+        # First try to get it from the installed package data
+        return pkg_resources.resource_filename('evaluatesegmask', f'../data/{filename}')
+    except Exception:
+        # Fallback to local data directory if running from source
+        local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', filename)
+        if os.path.exists(local_path):
+            return local_path
+        raise FileNotFoundError(f"Could not find ground truth file {filename} in package data or local data directory")
 
 def _intersection_over_union(masks_true, masks_pred):
     """Calculate intersection over union between masks.
@@ -206,19 +227,21 @@ def post_to_leaderboard(name, results_dict):
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
 
-def evaluate(pred_path, name, gt_path="001_masks.png", iou_threshold=0.5):
+def evaluate(pred_path, name, gt_path=None, iou_threshold=0.5):
     """
     Evaluate instance segmentation and post results to leaderboard in one step.
     
     Args:
         pred_path (str): Path to the prediction mask image
         name (str): Name or team ID for the leaderboard
-        gt_path (str): Path to the ground truth mask image
+        gt_path (str, optional): Path to the ground truth mask image. If None, uses default ground truth
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
         dict: Dictionary containing all evaluation metrics
     """
+    if gt_path is None:
+        gt_path = get_default_gt_path()
     results = evaluate_instance_segmentation(pred_path, gt_path, iou_threshold)
     post_to_leaderboard(name, results)
     return results 
