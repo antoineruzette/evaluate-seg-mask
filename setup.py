@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="evaluate-seg-mask",
+    name="evaluatesegmask",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
@@ -25,7 +25,7 @@ setup(
     python_requires=">=3.6",
     entry_points={
         "console_scripts": [
-            "evaluate-seg-mask=evaluate_seg_mask.cli:main",
+            "evaluatesegmask=evaluatesegmask.cli:main",
         ],
     },
 ) 
