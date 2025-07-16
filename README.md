@@ -30,6 +30,22 @@ If ground truth path is not provided, it defaults to "../_static/images/student_
 
 ### Python API
 
+There are three main ways to use the package:
+
+1. Combined evaluation and leaderboard submission:
+```python
+from evaluate_seg_mask import evaluate
+
+# Evaluate and submit to leaderboard in one step
+results = evaluate(
+    pred_path="path/to/prediction.png",
+    name="your_name",
+    gt_path="path/to/ground_truth.png",  # optional
+    iou_threshold=0.5  # optional
+)
+```
+
+2. Separate evaluation and submission:
 ```python
 from evaluate_seg_mask import evaluate_instance_segmentation, post_to_leaderboard
 

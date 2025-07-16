@@ -110,3 +110,20 @@ def post_to_leaderboard(name, results_dict):
             print(f"❌ Submission failed: {res.status_code}")
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
+
+def evaluate(pred_path, name, gt_path="../_static/images/student_group/001_masks.png", iou_threshold=0.5):
+    """
+    Evaluate instance segmentation and post results to leaderboard in one step.
+    
+    Args:
+        pred_path (str): Path to the prediction mask image
+        name (str): Name or team ID for the leaderboard
+        gt_path (str): Path to the ground truth mask image
+        iou_threshold (float): IoU threshold for considering a match
+        
+    Returns:
+        dict: Dictionary containing all evaluation metrics
+    """
+    results = evaluate_instance_segmentation(pred_path, gt_path, iou_threshold)
+    post_to_leaderboard(name, results)
+    return results 
