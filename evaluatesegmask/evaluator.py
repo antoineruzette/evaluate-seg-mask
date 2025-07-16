@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 import socket
 import os
-import pkg_resources
+from importlib.resources import files
 
 LEADERBOARD_URL = "https://liveboard-bobiac.onrender.com/update"
 
@@ -21,7 +21,8 @@ def get_default_gt_path(filename="001_masks.png"):
     """
     try:
         # First try to get it from the installed package data
-        return pkg_resources.resource_filename('evaluatesegmask', f'../data/{filename}')
+        data_path = files('evaluatesegmask').parent / 'data' / filename
+        return str(data_path)
     except Exception:
         # Fallback to local data directory if running from source
         local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', filename)
