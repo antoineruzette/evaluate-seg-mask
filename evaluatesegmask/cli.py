@@ -2,9 +2,9 @@ import sys
 from .evaluator import evaluate_instance_segmentation, post_to_leaderboard
 
 def main():
-    """Command-line interface for evaluate-seg-mask."""
+    """Command-line interface for evaluatesegmask."""
     if len(sys.argv) < 2:
-        print("Usage: evaluate-seg-mask <prediction_mask_path> [ground_truth_mask_path]")
+        print("Usage: evaluatesegmask <prediction_mask_path> [ground_truth_mask_path]")
         sys.exit(1)
 
     pred_path = sys.argv[1]
