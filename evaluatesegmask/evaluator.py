@@ -8,6 +8,96 @@ import socket
 
 LEADERBOARD_URL = "https://liveboard-bobiac.onrender.com/update"
 
+def _intersection_over_union(masks_true, masks_pred):
+    """Calculate intersection over union between masks.
+    
+    Args:
+        masks_true (ndarray): ground truth masks
+        masks_pred (ndarray): predicted masks
+        
+    Returns:
+        ndarray: IoU matrix of size [n_true+1, n_pred+1]
+    """
+    n_true = np.max(masks_true) if masks_true.size > 0 else 0
+    n_pred = np.max(masks_pred) if masks_pred.size > 0 else 0
+    
+    iou = np.zeros((n_true + 1, n_pred + 1), dtype=np.float32)
+    
+    for i in range(1, n_true + 1):
+        true_mask = masks_true == i
+        for j in range(1, n_pred + 1):
+            pred_mask = masks_pred == j
+            intersection = np.logical_and(true_mask, pred_mask).sum()
+            union = np.logical_or(true_mask, pred_mask).sum()
+            iou[i,j] = intersection / union if union > 0 else 0
+            
+    return iou
+
+def _true_positive(iou, threshold):
+    """Calculate number of true positive matches at a given IoU threshold.
+    
+    Args:
+        iou (ndarray): IoU matrix
+        threshold (float): IoU threshold
+        
+    Returns:
+        float: Number of true positive matches
+    """
+    matches = scipy.optimize.linear_sum_assignment(-iou)
+    return np.sum(iou[matches[0], matches[1]] >= threshold)
+
+def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
+    """ 
+    Average precision estimation: AP = TP / (TP + FP + FN)
+
+    Args:
+        masks_true (list of np.ndarrays (int) or np.ndarray (int)): 
+            where 0=NO masks; 1,2... are mask labels
+        masks_pred (list of np.ndarrays (int) or np.ndarray (int)): 
+            np.ndarray (int) where 0=NO masks; 1,2... are mask labels
+
+    Returns:
+        ap (array [len(masks_true) x len(threshold)]): 
+            average precision at thresholds
+        tp (array [len(masks_true) x len(threshold)]): 
+            number of true positives at thresholds
+        fp (array [len(masks_true) x len(threshold)]): 
+            number of false positives at thresholds
+        fn (array [len(masks_true) x len(threshold)]): 
+            number of false negatives at thresholds
+    """
+    not_list = False
+    if not isinstance(masks_true, list):
+        masks_true = [masks_true]
+        masks_pred = [masks_pred]
+        not_list = True
+    if not isinstance(threshold, list) and not isinstance(threshold, np.ndarray):
+        threshold = [threshold]
+
+    if len(masks_true) != len(masks_pred):
+        raise ValueError(
+            "metrics.average_precision requires len(masks_true)==len(masks_pred)")
+
+    ap = np.zeros((len(masks_true), len(threshold)), np.float32)
+    tp = np.zeros((len(masks_true), len(threshold)), np.float32)
+    fp = np.zeros((len(masks_true), len(threshold)), np.float32)
+    fn = np.zeros((len(masks_true), len(threshold)), np.float32)
+    n_true = np.array(list(map(np.max, masks_true)))
+    n_pred = np.array(list(map(np.max, masks_pred)))
+
+    for n in range(len(masks_true)):
+        if n_pred[n] > 0:
+            iou = _intersection_over_union(masks_true[n], masks_pred[n])[1:, 1:]
+            for k, th in enumerate(threshold):
+                tp[n, k] = _true_positive(iou, th)
+        fp[n] = n_pred[n] - tp[n]
+        fn[n] = n_true[n] - tp[n]
+        ap[n] = tp[n] / (tp[n] + fp[n] + fn[n])
+
+    if not_list:
+        ap, tp, fp, fn = ap[0], tp[0], fp[0], fn[0]
+    return ap, tp, fp, fn
+
 def evaluate_instance_segmentation(pred_path, gt_path="../_static/images/student_group/001_masks.png", iou_threshold=0.5):
     """
     Evaluate instance segmentation predictions against ground truth.
@@ -22,6 +112,10 @@ def evaluate_instance_segmentation(pred_path, gt_path="../_static/images/student
     """
     pred = skimage.io.imread(pred_path)
     gt = skimage.io.imread(gt_path)
+
+    # Calculate mAP with different IoU thresholds
+    ap, tp, fp, fn = average_precision(gt, pred, threshold=[0.5, 0.75, 0.9])
+    mean_ap = np.mean(ap)
 
     pred_labels = np.unique(pred[pred > 0])
     gt_labels = np.unique(gt[gt > 0])
@@ -70,6 +164,7 @@ def evaluate_instance_segmentation(pred_path, gt_path="../_static/images/student
     avg_rel_area_error = np.mean([ae[3] for ae in area_errors]) if area_errors else 0
 
     results = {
+        "Mean AP": round(mean_ap, 4),
         "Pixel Accuracy": round(pixel_accuracy, 4),
         "Pixel F1 Score": round(pixel_f1, 4),
         "Instance F1 Score": round(f1_instances, 4),
