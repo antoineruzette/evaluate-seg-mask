@@ -7,8 +7,45 @@ import requests
 import socket
 import os
 from importlib.resources import files
+from pathlib import Path
+import glob
 
 LEADERBOARD_URL = "https://liveboard-bobiac.onrender.com/update"
+
+def list_ground_truth_images():
+    """List all available ground truth mask images.
+    
+    Returns:
+        list: List of available ground truth image filenames
+    """
+    try:
+        # First try package data
+        data_path = files('evaluatesegmask').parent / 'data'
+        files_list = [f.name for f in data_path.glob('*.png')]
+    except Exception:
+        # Fallback to local data directory
+        data_path = Path(os.path.dirname(os.path.dirname(__file__))) / 'data'
+        files_list = [os.path.basename(f) for f in glob.glob(str(data_path / '*.png'))]
+    
+    if not files_list:
+        raise FileNotFoundError("No ground truth images found in data directory")
+    
+    return sorted(files_list)
+
+def validate_ground_truth_file(filename):
+    """Validate that a ground truth file exists.
+    
+    Args:
+        filename (str): Name of the ground truth file to validate
+        
+    Returns:
+        bool: True if file exists, False otherwise
+    """
+    try:
+        path = get_default_gt_path(filename)
+        return os.path.exists(path)
+    except:
+        return False
 
 def get_default_gt_path(filename="001_masks.png"):
     """Get the path to a default ground truth mask file.
@@ -235,7 +272,9 @@ def evaluate(pred_path, name, gt_path=None, iou_threshold=0.5):
     Args:
         pred_path (str): Path to the prediction mask image
         name (str): Name or team ID for the leaderboard
-        gt_path (str, optional): Path to the ground truth mask image. If None, uses default ground truth
+        gt_path (str, optional): Path to the ground truth mask image or filename from data folder.
+                               If None, uses 001_masks.png as default.
+                               Use list_ground_truth_images() to see available files.
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
@@ -243,6 +282,18 @@ def evaluate(pred_path, name, gt_path=None, iou_threshold=0.5):
     """
     if gt_path is None:
         gt_path = get_default_gt_path()
+    elif os.path.exists(gt_path):
+        # If it's a full path and exists, use it directly
+        pass
+    elif validate_ground_truth_file(gt_path):
+        # If it's just a filename from our data folder
+        gt_path = get_default_gt_path(gt_path)
+    else:
+        available = list_ground_truth_images()
+        raise ValueError(
+            f"Ground truth file '{gt_path}' not found. Available files: {available}"
+        )
+    
     results = evaluate_instance_segmentation(pred_path, gt_path, iou_threshold)
     post_to_leaderboard(name, results)
     return results 
