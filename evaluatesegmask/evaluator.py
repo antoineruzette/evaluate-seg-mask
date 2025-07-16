@@ -206,7 +206,7 @@ def post_to_leaderboard(name, results_dict):
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
 
-def evaluate(pred_path, name, gt_path="../_static/images/student_group/001_masks.png", iou_threshold=0.5):
+def evaluate(pred_path, name, gt_path="001_masks.png", iou_threshold=0.5):
     """
     Evaluate instance segmentation and post results to leaderboard in one step.
     
