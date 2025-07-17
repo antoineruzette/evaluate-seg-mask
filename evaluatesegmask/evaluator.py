@@ -143,14 +143,26 @@ def _intersection_over_union(masks_true, masks_pred):
     Returns:
         ndarray: IoU matrix of size [n_true+1, n_pred+1]
     """
-    n_true = np.max(masks_true) if masks_true.size > 0 else 0
-    n_pred = np.max(masks_pred) if masks_pred.size > 0 else 0
+    # Convert to int64 to avoid overflow
+    n_true = int(np.max(masks_true)) if masks_true.size > 0 else 0
+    n_pred = int(np.max(masks_pred)) if masks_pred.size > 0 else 0
     
-    iou = np.zeros((n_true + 1, n_pred + 1), dtype=np.float32)
+    # Ensure dimensions are reasonable
+    if n_true > 10000 or n_pred > 10000:
+        raise ValueError(
+            f"Too many mask instances detected. Got {n_true} true masks and {n_pred} predicted masks. "
+            "This might indicate an issue with the mask values."
+        )
     
-    for i in range(1, n_true + 1):
+    # Create IoU matrix with explicit dimensions
+    n_true_plus_one = n_true + 1
+    n_pred_plus_one = n_pred + 1
+    iou = np.zeros((n_true_plus_one, n_pred_plus_one), dtype=np.float32)
+    
+    # Calculate IoU for each mask pair
+    for i in range(1, n_true_plus_one):
         true_mask = masks_true == i
-        for j in range(1, n_pred + 1):
+        for j in range(1, n_pred_plus_one):
             pred_mask = masks_pred == j
             intersection = np.logical_and(true_mask, pred_mask).sum()
             union = np.logical_or(true_mask, pred_mask).sum()
