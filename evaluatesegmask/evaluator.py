@@ -322,11 +322,16 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     
     for gt_num in ground_truth_nums:
         gt_path = get_default_gt_path(gt_num)
-        # Find matching predictions for this ground truth
-        matching_preds = [p for p in pred_files if extract_number_from_filename(str(p)) == gt_num]
+        
+        # If evaluating specific ground truth, use all predictions in the directory
+        if ground_truth != 'all':
+            matching_preds = pred_files
+        else:
+            # For 'all', try to match predictions with their corresponding ground truth
+            matching_preds = [p for p in pred_files if extract_number_from_filename(str(p)) == gt_num]
         
         if not matching_preds:
-            print(f"Warning: No matching predictions found for ground truth {gt_num}")
+            print(f"Warning: No predictions found for ground truth {gt_num}")
             continue
             
         for pred_file in matching_preds:
