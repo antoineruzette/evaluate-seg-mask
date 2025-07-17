@@ -157,20 +157,49 @@ def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
         ap, tp, fp, fn = ap[0], tp[0], fp[0], fn[0]
     return ap, tp, fp, fn
 
-def evaluate_instance_segmentation(pred_path, gt_path="../_static/images/student_group/001_masks.png", iou_threshold=0.5):
+def evaluate_instance_segmentation(pred_path, gt_path, iou_threshold=0.5):
     """
     Evaluate instance segmentation predictions against ground truth.
     
     Args:
         pred_path (str): Path to the prediction mask image
-        gt_path (str): Path to the ground truth mask image
+        gt_path (str): Path to the ground truth mask image or filename from data folder.
+                      Available files: 001_masks.png, 002_masks.png, 003_masks.png
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
         dict: Dictionary containing all evaluation metrics
+        
+    Raises:
+        ValueError: If ground truth file not found or if dimensions don't match between prediction and ground truth
     """
+    if os.path.exists(gt_path):
+        # If it's a full path and exists, use it directly
+        pass
+    elif validate_ground_truth_file(gt_path):
+        # If it's just a filename from our data folder
+        gt_path = get_default_gt_path(gt_path)
+    else:
+        raise ValueError(
+            "Ground truth must be one of:\n"
+            "1. A path to an existing PNG file\n"
+            "2. One of the following filenames: 001_masks.png, 002_masks.png, 003_masks.png\n"
+            f"Got: '{gt_path}'"
+        )
+
     pred = skimage.io.imread(pred_path)
     gt = skimage.io.imread(gt_path)
+    
+    if pred.shape != gt.shape:
+        raise ValueError(
+            f"Prediction and ground truth dimensions don't match!\n"
+            f"Prediction shape: {pred.shape}\n"
+            f"Ground truth shape: {gt.shape}\n"
+            "\nPlease use one of these ground truth masks:\n"
+            "1. 001_masks.png\n"
+            "2. 002_masks.png\n"
+            "3. 003_masks.png"
+        )
 
     # Calculate mAP with different IoU thresholds
     ap, tp, fp, fn = average_precision(gt, pred, threshold=[0.5, 0.75, 0.9])
@@ -265,35 +294,23 @@ def post_to_leaderboard(name, results_dict):
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
 
-def evaluate(pred_path, name, gt_path=None, iou_threshold=0.5):
+def evaluate(pred_path, name, gt_path, iou_threshold=0.5):
     """
     Evaluate instance segmentation and post results to leaderboard in one step.
     
     Args:
         pred_path (str): Path to the prediction mask image
         name (str): Name or team ID for the leaderboard
-        gt_path (str, optional): Path to the ground truth mask image or filename from data folder.
-                               If None, uses 001_masks.png as default.
-                               Use list_ground_truth_images() to see available files.
+        gt_path (str): Path to the ground truth mask image or filename from data folder.
+                      Available files: 001_masks.png, 002_masks.png, 003_masks.png
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
         dict: Dictionary containing all evaluation metrics
+        
+    Raises:
+        ValueError: If ground truth file not found or if dimensions don't match between prediction and ground truth
     """
-    if gt_path is None:
-        gt_path = get_default_gt_path()
-    elif os.path.exists(gt_path):
-        # If it's a full path and exists, use it directly
-        pass
-    elif validate_ground_truth_file(gt_path):
-        # If it's just a filename from our data folder
-        gt_path = get_default_gt_path(gt_path)
-    else:
-        available = list_ground_truth_images()
-        raise ValueError(
-            f"Ground truth file '{gt_path}' not found. Available files: {available}"
-        )
-    
     results = evaluate_instance_segmentation(pred_path, gt_path, iou_threshold)
     post_to_leaderboard(name, results)
     return results 
