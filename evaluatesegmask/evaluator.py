@@ -100,37 +100,22 @@ def get_ground_truth_path(ground_truth_folder: str, mask_number: str) -> str:
         
     filename = f"{mask_number}_masks.png"
     
-    # First try to get it from the installed package data
+    # Get it from the installed package data
     try:
-        data_path = files('evaluatesegmask').parent / 'data' / ground_truth_folder / filename
+        # The data directory should be inside the evaluatesegmask package
+        data_path = files('evaluatesegmask') / 'data' / ground_truth_folder / filename
         print(f"Looking for ground truth in package data: {data_path}")
         if os.path.exists(str(data_path)):
             print(f"Found ground truth file in package data")
             return str(data_path)
+        raise FileNotFoundError(f"Ground truth file not found in package data")
     except Exception as e:
-        print(f"Error looking in package data: {e}")
-        
-    # Fallback to local data directory if running from source
-    local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', ground_truth_folder, filename)
-    print(f"Looking for ground truth in local data: {local_path}")
-    if os.path.exists(local_path):
-        print(f"Found ground truth file in local data")
-        return local_path
-    
-    # Try absolute path from current directory
-    current_dir_path = os.path.join(os.getcwd(), 'data', ground_truth_folder, filename)
-    print(f"Looking for ground truth in current directory: {current_dir_path}")
-    if os.path.exists(current_dir_path):
-        print(f"Found ground truth file in current directory")
-        return current_dir_path
-    
-    raise FileNotFoundError(
-        f"Could not find ground truth file {filename} in ground truth folder {ground_truth_folder}.\n"
-        f"Tried paths:\n"
-        f"- Package data: {data_path}\n"
-        f"- Local data: {local_path}\n"
-        f"- Current directory: {current_dir_path}"
-    )
+        print(f"Error accessing package data: {e}")
+        raise FileNotFoundError(
+            f"Could not find ground truth file {filename} in ground truth folder {ground_truth_folder}.\n"
+            f"Make sure the package is installed correctly with its data files.\n"
+            f"Tried path: {data_path}"
+        )
 
 def extract_number_from_filename(filename: str) -> str:
     """Extract the number (e.g., '001') from a filename.
