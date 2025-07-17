@@ -47,15 +47,25 @@ def validate_ground_truth_file(filename):
     except:
         return False
 
-def get_default_gt_path(filename="001_masks.png"):
-    """Get the path to a default ground truth mask file.
+def get_default_gt_path(gt_number):
+    """Get the path to a ground truth mask file.
     
     Args:
-        filename (str): Name of the ground truth file to get
+        gt_number (str): Ground truth number ('001', '002', or '003')
         
     Returns:
         str: Full path to the ground truth file
+        
+    Raises:
+        ValueError: If gt_number is not one of '001', '002', '003'
     """
+    if gt_number not in ['001', '002', '003']:
+        raise ValueError(
+            "Ground truth number must be one of: '001', '002', '003'\n"
+            f"Got: '{gt_number}'"
+        )
+        
+    filename = f"{gt_number}_masks.png"
     try:
         # First try to get it from the installed package data
         data_path = files('evaluatesegmask').parent / 'data' / filename
@@ -157,34 +167,27 @@ def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
         ap, tp, fp, fn = ap[0], tp[0], fp[0], fn[0]
     return ap, tp, fp, fn
 
-def evaluate_instance_segmentation(pred_path, gt_path, iou_threshold=0.5):
+def evaluate_instance_segmentation(pred_path, gt_number, iou_threshold=0.5):
     """
     Evaluate instance segmentation predictions against ground truth.
     
     Args:
         pred_path (str): Path to the prediction mask image
-        gt_path (str): Path to the ground truth mask image or filename from data folder.
-                      Available files: 001_masks.png, 002_masks.png, 003_masks.png
+        gt_number (str): Ground truth number to use ('001', '002', or '003')
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
         dict: Dictionary containing all evaluation metrics
         
     Raises:
-        ValueError: If ground truth file not found or if dimensions don't match between prediction and ground truth
+        ValueError: If ground truth number is invalid or if dimensions don't match between prediction and ground truth
     """
-    if os.path.exists(gt_path):
-        # If it's a full path and exists, use it directly
-        pass
-    elif validate_ground_truth_file(gt_path):
-        # If it's just a filename from our data folder
-        gt_path = get_default_gt_path(gt_path)
-    else:
+    try:
+        gt_path = get_default_gt_path(gt_number)
+    except ValueError as e:
         raise ValueError(
-            "Ground truth must be one of:\n"
-            "1. A path to an existing PNG file\n"
-            "2. One of the following filenames: 001_masks.png, 002_masks.png, 003_masks.png\n"
-            f"Got: '{gt_path}'"
+            "Ground truth must be one of: '001', '002', '003'\n"
+            f"Got: '{gt_number}'"
         )
 
     pred = skimage.io.imread(pred_path)
@@ -195,10 +198,10 @@ def evaluate_instance_segmentation(pred_path, gt_path, iou_threshold=0.5):
             f"Prediction and ground truth dimensions don't match!\n"
             f"Prediction shape: {pred.shape}\n"
             f"Ground truth shape: {gt.shape}\n"
-            "\nPlease use one of these ground truth masks:\n"
-            "1. 001_masks.png\n"
-            "2. 002_masks.png\n"
-            "3. 003_masks.png"
+            "\nPlease use one of these ground truth numbers:\n"
+            "1. '001'\n"
+            "2. '002'\n"
+            "3. '003'"
         )
 
     # Calculate mAP with different IoU thresholds
@@ -294,23 +297,22 @@ def post_to_leaderboard(name, results_dict):
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
 
-def evaluate(pred_path, name, gt_path, iou_threshold=0.5):
+def evaluate(pred_path, name, gt_number, iou_threshold=0.5):
     """
     Evaluate instance segmentation and post results to leaderboard in one step.
     
     Args:
         pred_path (str): Path to the prediction mask image
         name (str): Name or team ID for the leaderboard
-        gt_path (str): Path to the ground truth mask image or filename from data folder.
-                      Available files: 001_masks.png, 002_masks.png, 003_masks.png
+        gt_number (str): Ground truth number to use ('001', '002', or '003')
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
         dict: Dictionary containing all evaluation metrics
         
     Raises:
-        ValueError: If ground truth file not found or if dimensions don't match between prediction and ground truth
+        ValueError: If ground truth number is invalid or if dimensions don't match between prediction and ground truth
     """
-    results = evaluate_instance_segmentation(pred_path, gt_path, iou_threshold)
+    results = evaluate_instance_segmentation(pred_path, gt_number, iou_threshold)
     post_to_leaderboard(name, results)
     return results 
