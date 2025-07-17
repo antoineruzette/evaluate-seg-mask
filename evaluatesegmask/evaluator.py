@@ -422,9 +422,9 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     
     return avg_results
 
-def post_to_leaderboard(name, results_dict):
+def post_to_leaderboard(name: str, task: str, results_dict: Dict) -> None:
     """
-    Post results to the leaderboard.
+    Post results to the leaderboard, client side.
     
     Args:
         name (str): Name or team ID for the leaderboard
@@ -432,6 +432,7 @@ def post_to_leaderboard(name, results_dict):
     """
     payload = {
         "name": name,
+        "task": task,
         "host": socket.gethostname(),
         "results": results_dict
     }
@@ -461,5 +462,5 @@ def evaluate(pred_path: Union[str, Path], name: str, ground_truth: str, iou_thre
         ValueError: If ground truth number is invalid or if dimensions don't match
     """
     results = evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold)
-    post_to_leaderboard(name, results)
+    post_to_leaderboard(name, ground_truth, results)
     return results 
