@@ -9,6 +9,8 @@ import os
 from importlib.resources import files
 from pathlib import Path
 import glob
+from typing import Union, Dict, List
+import re
 
 LEADERBOARD_URL = "https://liveboard-bobiac.onrender.com/update"
 
@@ -47,35 +49,50 @@ def validate_ground_truth_file(filename):
     except:
         return False
 
-def get_default_gt_path(gt_number):
+def get_default_gt_path(ground_truth: str) -> str:
     """Get the path to a ground truth mask file.
     
     Args:
-        gt_number (str): Ground truth number ('001', '002', or '003')
+        ground_truth (str): Ground truth number ('001', '002', or '003')
         
     Returns:
         str: Full path to the ground truth file
         
     Raises:
-        ValueError: If gt_number is not one of '001', '002', '003'
+        ValueError: If ground_truth is not one of '001', '002', '003'
     """
-    if gt_number not in ['001', '002', '003']:
+    if ground_truth not in ['001', '002', '003']:
         raise ValueError(
-            "Ground truth number must be one of: '001', '002', '003'\n"
-            f"Got: '{gt_number}'"
+            "Ground truth must be one of: '001', '002', '003'\n"
+            f"Got: '{ground_truth}'"
         )
         
-    filename = f"{gt_number}_masks.png"
     try:
         # First try to get it from the installed package data
-        data_path = files('evaluatesegmask').parent / 'data' / filename
+        data_path = files('evaluatesegmask').parent / 'data' / ground_truth / f"{ground_truth}_masks.png"
         return str(data_path)
     except Exception:
         # Fallback to local data directory if running from source
-        local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', filename)
+        local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', ground_truth, f"{ground_truth}_masks.png")
         if os.path.exists(local_path):
             return local_path
-        raise FileNotFoundError(f"Could not find ground truth file {filename} in package data or local data directory")
+        raise FileNotFoundError(f"Could not find ground truth file {ground_truth}_masks.png in package data or local data directory")
+
+def extract_number_from_filename(filename: str) -> str:
+    """Extract the number (e.g., '001') from a filename.
+    
+    Args:
+        filename (str): Filename to extract number from
+        
+    Returns:
+        str: Extracted number or None if no match
+        
+    Example:
+        >>> extract_number_from_filename("path/to/001_something.png")
+        '001'
+    """
+    match = re.search(r'(\d{3})', os.path.basename(filename))
+    return match.group(1) if match else None
 
 def _intersection_over_union(masks_true, masks_pred):
     """Calculate intersection over union between masks.
@@ -167,29 +184,17 @@ def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
         ap, tp, fp, fn = ap[0], tp[0], fp[0], fn[0]
     return ap, tp, fp, fn
 
-def evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold=0.5):
-    """
-    Evaluate instance segmentation predictions against ground truth.
+def compute_metrics_for_pair(pred_path: str, gt_path: str, iou_threshold: float = 0.5) -> Dict:
+    """Compute metrics for a single prediction-ground truth pair.
     
     Args:
-        pred_path (str): Path to the prediction mask image
-        gt_number (str): Ground truth number to use ('001', '002', or '003')
-        iou_threshold (float): IoU threshold for considering a match
+        pred_path (str): Path to prediction mask
+        gt_path (str): Path to ground truth mask
+        iou_threshold (float): IoU threshold
         
     Returns:
-        dict: Dictionary containing all evaluation metrics
-        
-    Raises:
-        ValueError: If ground truth number is invalid or if dimensions don't match between prediction and ground truth
+        dict: Metrics for this pair
     """
-    try:
-        gt_path = get_default_gt_path(ground_truth)
-    except ValueError as e:
-        raise ValueError(
-            "Ground truth must be one of: '001', '002', '003'\n"
-            f"Got: '{ground_truth}'"
-        )
-
     pred = skimage.io.imread(pred_path)
     gt = skimage.io.imread(gt_path)
     
@@ -198,15 +203,12 @@ def evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold=0.5):
             f"Prediction and ground truth dimensions don't match!\n"
             f"Prediction shape: {pred.shape}\n"
             f"Ground truth shape: {gt.shape}\n"
-            "\nPlease use one of these ground truth numbers:\n"
-            "1. '001'\n"
-            "2. '002'\n"
-            "3. '003'"
+            f"Files: \n- Pred: {pred_path}\n- GT: {gt_path}"
         )
 
     # Calculate mAP with different IoU thresholds
     ap, tp, fp, fn = average_precision(gt, pred, threshold=[0.5, 0.75, 0.9])
-    mean_ap = float(np.mean(ap))  # Convert to native Python float
+    mean_ap = float(np.mean(ap))
 
     pred_labels = np.unique(pred[pred > 0])
     gt_labels = np.unique(gt[gt > 0])
@@ -214,7 +216,7 @@ def evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold=0.5):
     num_pred = len(pred_labels)
     num_gt = len(gt_labels)
 
-    TP_px = int(np.logical_and(pred > 0, gt > 0).sum())  # Convert to native Python int
+    TP_px = int(np.logical_and(pred > 0, gt > 0).sum())
     FP_px = int(np.logical_and(pred > 0, gt == 0).sum())
     FN_px = int(np.logical_and(pred == 0, gt > 0).sum())
     TN_px = int(np.logical_and(pred == 0, gt == 0).sum())
@@ -254,7 +256,7 @@ def evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold=0.5):
     avg_abs_area_error = float(np.mean([ae[2] for ae in area_errors])) if area_errors else 0
     avg_rel_area_error = float(np.mean([ae[3] for ae in area_errors])) if area_errors else 0
 
-    results = {
+    return {
         "Mean AP": round(mean_ap, 4),
         "Pixel Accuracy": round(pixel_accuracy, 4),
         "Pixel F1 Score": round(pixel_f1, 4),
@@ -267,13 +269,96 @@ def evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold=0.5):
         "FN Instances": int(fn)
     }
 
-    metrics_table = pd.DataFrame({
-        "Metric": list(results.keys()),
-        "Value": list(results.values())
-    })
+def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: str, iou_threshold: float = 0.5) -> Dict:
+    """
+    Evaluate instance segmentation predictions against ground truth.
     
+    Args:
+        pred_path (str): Path to prediction mask image or directory containing predictions
+        ground_truth (str): Ground truth number ('001', '002', or '003') or 'all'
+        iou_threshold (float): IoU threshold for considering a match
+        
+    Returns:
+        dict: Dictionary containing all evaluation metrics (averaged if multiple predictions)
+        
+    Raises:
+        ValueError: If ground truth number is invalid or if dimensions don't match
+    """
+    pred_path = Path(pred_path)
+    
+    # Validate ground truth
+    if ground_truth not in ['001', '002', '003', 'all']:
+        raise ValueError(
+            "Ground truth must be one of: '001', '002', '003', or 'all'\n"
+            f"Got: '{ground_truth}'"
+        )
+    
+    # Handle single file case
+    if pred_path.is_file():
+        if ground_truth == 'all':
+            raise ValueError("Cannot use 'all' with a single prediction file. Please specify '001', '002', or '003'.")
+        gt_path = get_default_gt_path(ground_truth)
+        results = compute_metrics_for_pair(str(pred_path), gt_path, iou_threshold)
+        
+        metrics_table = pd.DataFrame({
+            "Metric": list(results.keys()),
+            "Value": list(results.values())
+        })
+        print(metrics_table.to_string(index=False))
+        return results
+    
+    # Handle directory case
+    if not pred_path.is_dir():
+        raise ValueError(f"Path does not exist or is neither a file nor directory: {pred_path}")
+    
+    # Get all PNG files in the prediction directory
+    pred_files = list(pred_path.glob("**/*.png"))
+    if not pred_files:
+        raise ValueError(f"No PNG files found in directory: {pred_path}")
+    
+    # Process each prediction file
+    all_results = []
+    ground_truth_nums = ['001', '002', '003'] if ground_truth == 'all' else [ground_truth]
+    
+    for gt_num in ground_truth_nums:
+        gt_path = get_default_gt_path(gt_num)
+        # Find matching predictions for this ground truth
+        matching_preds = [p for p in pred_files if extract_number_from_filename(str(p)) == gt_num]
+        
+        if not matching_preds:
+            print(f"Warning: No matching predictions found for ground truth {gt_num}")
+            continue
+            
+        for pred_file in matching_preds:
+            try:
+                results = compute_metrics_for_pair(str(pred_file), gt_path, iou_threshold)
+                all_results.append(results)
+                print(f"\nResults for {pred_file.name} vs {gt_num}_masks.png:")
+                metrics_table = pd.DataFrame({
+                    "Metric": list(results.keys()),
+                    "Value": list(results.values())
+                })
+                print(metrics_table.to_string(index=False))
+            except Exception as e:
+                print(f"Error processing {pred_file.name}: {str(e)}")
+    
+    if not all_results:
+        raise ValueError("No valid prediction-ground truth pairs were found to evaluate")
+    
+    # Compute averages
+    avg_results = {}
+    for metric in all_results[0].keys():
+        values = [r[metric] for r in all_results]
+        avg_results[metric] = round(float(np.mean(values)), 4)
+    
+    print("\nAVERAGE RESULTS:")
+    metrics_table = pd.DataFrame({
+        "Metric": list(avg_results.keys()),
+        "Value": list(avg_results.values())
+    })
     print(metrics_table.to_string(index=False))
-    return results
+    
+    return avg_results
 
 def post_to_leaderboard(name, results_dict):
     """
@@ -297,21 +382,21 @@ def post_to_leaderboard(name, results_dict):
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
 
-def evaluate(pred_path, name, ground_truth, iou_threshold=0.5):
+def evaluate(pred_path: Union[str, Path], name: str, ground_truth: str, iou_threshold: float = 0.5) -> Dict:
     """
     Evaluate instance segmentation and post results to leaderboard in one step.
     
     Args:
-        pred_path (str): Path to the prediction mask image
+        pred_path (str): Path to prediction mask image or directory containing predictions
         name (str): Name or team ID for the leaderboard
-        gt_number (str): Ground truth number to use ('001', '002', or '003')
+        ground_truth (str): Ground truth number ('001', '002', or '003') or 'all'
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
-        dict: Dictionary containing all evaluation metrics
+        dict: Dictionary containing all evaluation metrics (averaged if multiple predictions)
         
     Raises:
-        ValueError: If ground truth number is invalid or if dimensions don't match between prediction and ground truth
+        ValueError: If ground truth number is invalid or if dimensions don't match
     """
     results = evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold)
     post_to_leaderboard(name, results)
