@@ -78,6 +78,47 @@ def get_default_gt_path(ground_truth: str) -> str:
             return local_path
         raise FileNotFoundError(f"Could not find ground truth file {ground_truth}_masks.png in package data or local data directory")
 
+def get_ground_truth_path(ground_truth_folder: str, mask_number: str) -> str:
+    """Get the path to a ground truth mask file.
+    
+    Args:
+        ground_truth_folder (str): Ground truth folder ('001', '002', or '003')
+        mask_number (str): The mask number (e.g., '008' from '008_masks.png')
+        
+    Returns:
+        str: Full path to the ground truth file
+        
+    Raises:
+        ValueError: If ground_truth_folder is not one of '001', '002', '003'
+        FileNotFoundError: If the ground truth file doesn't exist
+    """
+    if ground_truth_folder not in ['001', '002', '003']:
+        raise ValueError(
+            "Ground truth folder must be one of: '001', '002', '003'\n"
+            f"Got: '{ground_truth_folder}'"
+        )
+        
+    filename = f"{mask_number}_masks.png"
+    try:
+        # First try to get it from the installed package data
+        data_path = files('evaluatesegmask').parent / 'data' / ground_truth_folder / filename
+        if os.path.exists(str(data_path)):
+            return str(data_path)
+    except Exception:
+        pass
+        
+    # Fallback to local data directory if running from source
+    local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', ground_truth_folder, filename)
+    if os.path.exists(local_path):
+        return local_path
+    
+    raise FileNotFoundError(
+        f"Could not find ground truth file {filename} in ground truth folder {ground_truth_folder}.\n"
+        f"Tried paths:\n"
+        f"- Package data: {data_path}\n"
+        f"- Local data: {local_path}"
+    )
+
 def extract_number_from_filename(filename: str) -> str:
     """Extract the number (e.g., '001') from a filename.
     
@@ -275,7 +316,7 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     
     Args:
         pred_path (str): Path to prediction mask image or directory containing predictions
-        ground_truth (str): Ground truth number ('001', '002', or '003') or 'all'
+        ground_truth (str): Ground truth folder ('001', '002', or '003') or 'all'
         iou_threshold (float): IoU threshold for considering a match
         
     Returns:
@@ -297,15 +338,24 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     if pred_path.is_file():
         if ground_truth == 'all':
             raise ValueError("Cannot use 'all' with a single prediction file. Please specify '001', '002', or '003'.")
-        gt_path = get_default_gt_path(ground_truth)
-        results = compute_metrics_for_pair(str(pred_path), gt_path, iou_threshold)
         
-        metrics_table = pd.DataFrame({
-            "Metric": list(results.keys()),
-            "Value": list(results.values())
-        })
-        print(metrics_table.to_string(index=False))
-        return results
+        # Get the number from the prediction filename
+        pred_number = extract_number_from_filename(str(pred_path))
+        if not pred_number:
+            raise ValueError(f"Could not extract number from prediction filename: {pred_path}")
+            
+        try:
+            gt_path = get_ground_truth_path(ground_truth, pred_number)
+            results = compute_metrics_for_pair(str(pred_path), gt_path, iou_threshold)
+            
+            metrics_table = pd.DataFrame({
+                "Metric": list(results.keys()),
+                "Value": list(results.values())
+            })
+            print(metrics_table.to_string(index=False))
+            return results
+        except FileNotFoundError as e:
+            raise ValueError(f"No matching ground truth found for prediction {pred_path.name} in folder {ground_truth}")
     
     # Handle directory case
     if not pred_path.is_dir():
@@ -320,30 +370,26 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     all_results = []
     ground_truth_nums = ['001', '002', '003'] if ground_truth == 'all' else [ground_truth]
     
-    for gt_num in ground_truth_nums:
-        gt_path = get_default_gt_path(gt_num)
-        
-        # If evaluating specific ground truth, use all predictions in the directory
-        if ground_truth != 'all':
-            matching_preds = pred_files
-        else:
-            # For 'all', try to match predictions with their corresponding ground truth
-            matching_preds = [p for p in pred_files if extract_number_from_filename(str(p)) == gt_num]
-        
-        if not matching_preds:
-            print(f"Warning: No predictions found for ground truth {gt_num}")
-            continue
-            
-        for pred_file in matching_preds:
+    for gt_folder in ground_truth_nums:
+        # For each prediction, try to find its corresponding ground truth
+        for pred_file in pred_files:
+            pred_number = extract_number_from_filename(str(pred_file))
+            if not pred_number:
+                print(f"Warning: Could not extract number from prediction filename: {pred_file.name}")
+                continue
+                
             try:
+                gt_path = get_ground_truth_path(gt_folder, pred_number)
                 results = compute_metrics_for_pair(str(pred_file), gt_path, iou_threshold)
                 all_results.append(results)
-                print(f"\nResults for {pred_file.name} vs {gt_num}_masks.png:")
+                print(f"\nResults for {pred_file.name} vs {os.path.basename(gt_path)}:")
                 metrics_table = pd.DataFrame({
                     "Metric": list(results.keys()),
                     "Value": list(results.values())
                 })
                 print(metrics_table.to_string(index=False))
+            except FileNotFoundError as e:
+                print(f"Warning: No matching ground truth found for {pred_file.name} in folder {gt_folder}")
             except Exception as e:
                 print(f"Error processing {pred_file.name}: {str(e)}")
     
