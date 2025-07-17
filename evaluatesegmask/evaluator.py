@@ -324,7 +324,6 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
         ValueError: If ground truth number is invalid or if dimensions don't match
     """
     pred_path = Path(pred_path)
-    # print(f"\nEvaluating predictions from: {pred_path} (absolute: {pred_path.absolute()})")
     
     # Validate ground truth
     if ground_truth not in ['001', '002', '003', 'all']:
@@ -360,22 +359,21 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     if not pred_path.is_dir():
         raise ValueError(f"Path does not exist or is neither a file nor directory: {pred_path}")
     
-    # Get all PNG files in the prediction directory
-    pred_files = list(pred_path.glob("**/*.png"))
-    print(f"\nFound prediction files: {[f.name for f in pred_files]}")
+    # Get all PNG and TIFF files in the prediction directory
+    pred_files = []
+    for ext in ['*.png', '*.tif', '*.tiff']:
+        pred_files.extend(list(pred_path.glob(f"**/{ext}")))
     
     if not pred_files:
-        raise ValueError(f"No PNG files found in directory: {pred_path}")
+        raise ValueError(f"No PNG or TIFF files found in directory: {pred_path}")
     
     # Process each prediction file
     all_results = []
     ground_truth_nums = ['001', '002', '003'] if ground_truth == 'all' else [ground_truth]
     
     for gt_folder in ground_truth_nums:
-        print(f"\nProcessing ground truth folder: {gt_folder}")
         # For each prediction, try to find its corresponding ground truth
         for pred_file in pred_files:
-            print(f"\nProcessing prediction file: {pred_file.name}")
             pred_number = extract_number_from_filename(str(pred_file))
             if not pred_number:
                 print(f"Warning: Could not extract number from prediction filename: {pred_file.name}")
