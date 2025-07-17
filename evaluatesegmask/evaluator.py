@@ -234,8 +234,18 @@ def compute_metrics_for_pair(pred_path: str, gt_path: str, iou_threshold: float 
     Returns:
         dict: Metrics for this pair
     """
-    pred = skimage.io.imread(pred_path)
-    gt = skimage.io.imread(gt_path)
+    try:
+        # Try reading with skimage first
+        try:
+            pred = skimage.io.imread(pred_path)
+        except Exception as e:
+            # If skimage fails, try PIL as fallback
+            from PIL import Image
+            pred = np.array(Image.open(pred_path))
+            
+        gt = skimage.io.imread(gt_path)
+    except Exception as e:
+        raise ValueError(f"Failed to read image files:\n{str(e)}")
     
     if pred.shape != gt.shape:
         raise ValueError(
