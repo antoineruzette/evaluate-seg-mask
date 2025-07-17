@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evaluatesegmask"
+version = "0.1.0"
+description = "A package for evaluating instance segmentation masks"
+readme = "README.md"
+requires-python = ">=3.6"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Antoine"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "scikit-image",
+    "scipy",
+    "pandas",
+    "requests",
+    "Pillow",
+]
+
+[project.scripts]
+evaluatesegmask = "evaluatesegmask.cli:main"
+
+[tool.setuptools]
+packages = ["evaluatesegmask"]
+
+[tool.setuptools.package-data]
+evaluatesegmask = ["data/**/*"] 

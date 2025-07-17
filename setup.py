@@ -25,7 +25,8 @@ setup(
         "scikit-image",
         "scipy",
         "pandas",
-        "requests"
+        "requests",
+        "Pillow"
     ],
     author="Antoine",
     author_email="",  # Add your email if desired
