@@ -99,24 +99,37 @@ def get_ground_truth_path(ground_truth_folder: str, mask_number: str) -> str:
         )
         
     filename = f"{mask_number}_masks.png"
+    
+    # First try to get it from the installed package data
     try:
-        # First try to get it from the installed package data
         data_path = files('evaluatesegmask').parent / 'data' / ground_truth_folder / filename
+        print(f"Looking for ground truth in package data: {data_path}")
         if os.path.exists(str(data_path)):
+            print(f"Found ground truth file in package data")
             return str(data_path)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error looking in package data: {e}")
         
     # Fallback to local data directory if running from source
     local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', ground_truth_folder, filename)
+    print(f"Looking for ground truth in local data: {local_path}")
     if os.path.exists(local_path):
+        print(f"Found ground truth file in local data")
         return local_path
+    
+    # Try absolute path from current directory
+    current_dir_path = os.path.join(os.getcwd(), 'data', ground_truth_folder, filename)
+    print(f"Looking for ground truth in current directory: {current_dir_path}")
+    if os.path.exists(current_dir_path):
+        print(f"Found ground truth file in current directory")
+        return current_dir_path
     
     raise FileNotFoundError(
         f"Could not find ground truth file {filename} in ground truth folder {ground_truth_folder}.\n"
         f"Tried paths:\n"
         f"- Package data: {data_path}\n"
-        f"- Local data: {local_path}"
+        f"- Local data: {local_path}\n"
+        f"- Current directory: {current_dir_path}"
     )
 
 def extract_number_from_filename(filename: str) -> str:
@@ -326,6 +339,7 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
         ValueError: If ground truth number is invalid or if dimensions don't match
     """
     pred_path = Path(pred_path)
+    print(f"\nEvaluating predictions from: {pred_path} (absolute: {pred_path.absolute()})")
     
     # Validate ground truth
     if ground_truth not in ['001', '002', '003', 'all']:
@@ -363,6 +377,8 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     
     # Get all PNG files in the prediction directory
     pred_files = list(pred_path.glob("**/*.png"))
+    print(f"\nFound prediction files: {[f.name for f in pred_files]}")
+    
     if not pred_files:
         raise ValueError(f"No PNG files found in directory: {pred_path}")
     
@@ -371,8 +387,10 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
     ground_truth_nums = ['001', '002', '003'] if ground_truth == 'all' else [ground_truth]
     
     for gt_folder in ground_truth_nums:
+        print(f"\nProcessing ground truth folder: {gt_folder}")
         # For each prediction, try to find its corresponding ground truth
         for pred_file in pred_files:
+            print(f"\nProcessing prediction file: {pred_file.name}")
             pred_number = extract_number_from_filename(str(pred_file))
             if not pred_number:
                 print(f"Warning: Could not extract number from prediction filename: {pred_file.name}")
