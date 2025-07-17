@@ -31,6 +31,7 @@ evaluatesegmask = "evaluatesegmask.cli:main"
 
 [tool.setuptools]
 packages = ["evaluatesegmask"]
+include-package-data = true
 
 [tool.setuptools.package-data]
-evaluatesegmask = ["data/**/*"] 
+"*" = ["data/**/*"] 
