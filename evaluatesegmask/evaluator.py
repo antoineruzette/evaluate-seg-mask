@@ -167,7 +167,7 @@ def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
         ap, tp, fp, fn = ap[0], tp[0], fp[0], fn[0]
     return ap, tp, fp, fn
 
-def evaluate_instance_segmentation(pred_path, gt_number, iou_threshold=0.5):
+def evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold=0.5):
     """
     Evaluate instance segmentation predictions against ground truth.
     
@@ -183,11 +183,11 @@ def evaluate_instance_segmentation(pred_path, gt_number, iou_threshold=0.5):
         ValueError: If ground truth number is invalid or if dimensions don't match between prediction and ground truth
     """
     try:
-        gt_path = get_default_gt_path(gt_number)
+        gt_path = get_default_gt_path(ground_truth)
     except ValueError as e:
         raise ValueError(
             "Ground truth must be one of: '001', '002', '003'\n"
-            f"Got: '{gt_number}'"
+            f"Got: '{ground_truth}'"
         )
 
     pred = skimage.io.imread(pred_path)
@@ -297,7 +297,7 @@ def post_to_leaderboard(name, results_dict):
     except Exception as e:
         print(f"⚠️ Failed to connect to leaderboard: {e}") 
 
-def evaluate(pred_path, name, gt_number, iou_threshold=0.5):
+def evaluate(pred_path, name, ground_truth, iou_threshold=0.5):
     """
     Evaluate instance segmentation and post results to leaderboard in one step.
     
@@ -313,6 +313,6 @@ def evaluate(pred_path, name, gt_number, iou_threshold=0.5):
     Raises:
         ValueError: If ground truth number is invalid or if dimensions don't match between prediction and ground truth
     """
-    results = evaluate_instance_segmentation(pred_path, gt_number, iou_threshold)
+    results = evaluate_instance_segmentation(pred_path, ground_truth, iou_threshold)
     post_to_leaderboard(name, results)
     return results 
