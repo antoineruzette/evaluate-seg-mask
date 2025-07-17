@@ -185,13 +185,17 @@ def _true_positive(iou, threshold):
 
 def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
     """ 
-    Average precision estimation: AP = TP / (TP + FP + FN)
+    Average precision estimation following COCO metric.
+    When confidence scores are not available (our case), we treat all predictions
+    as having equal confidence, which means AP will be equal to the IoU-thresholded
+    recall at each threshold.
 
     Args:
         masks_true (list of np.ndarrays (int) or np.ndarray (int)): 
             where 0=NO masks; 1,2... are mask labels
         masks_pred (list of np.ndarrays (int) or np.ndarray (int)): 
             np.ndarray (int) where 0=NO masks; 1,2... are mask labels
+        threshold (list): IoU thresholds to evaluate at
 
     Returns:
         ap (array [len(masks_true) x len(threshold)]): 
@@ -227,9 +231,12 @@ def average_precision(masks_true, masks_pred, threshold=[0.5, 0.75, 0.9]):
             iou = _intersection_over_union(masks_true[n], masks_pred[n])[1:, 1:]
             for k, th in enumerate(threshold):
                 tp[n, k] = _true_positive(iou, th)
-        fp[n] = n_pred[n] - tp[n]
-        fn[n] = n_true[n] - tp[n]
-        ap[n] = tp[n] / (tp[n] + fp[n] + fn[n])
+                # Since we don't have confidence scores, AP at each threshold
+                # is equal to the recall at that threshold
+                fp[n, k] = n_pred[n] - tp[n, k]
+                fn[n, k] = n_true[n] - tp[n, k]
+                recall = tp[n, k] / (tp[n, k] + fn[n, k]) if (tp[n, k] + fn[n, k]) > 0 else 0
+                ap[n, k] = recall  # AP = recall when all predictions have equal confidence
 
     if not_list:
         ap, tp, fp, fn = ap[0], tp[0], fp[0], fn[0]
@@ -267,9 +274,10 @@ def compute_metrics_for_pair(pred_path: str, gt_path: str, iou_threshold: float 
             f"Files: \n- Pred: {pred_path}\n- GT: {gt_path}"
         )
 
-    # Calculate mAP with different IoU thresholds
-    ap, tp, fp, fn = average_precision(gt, pred, threshold=[0.5, 0.75, 0.9])
-    mean_ap = float(np.mean(ap))
+    # Calculate mAP with COCO-style IoU thresholds (0.5:0.95)
+    thresholds = np.linspace(0.5, 0.95, 10)
+    ap, tp, fp, fn = average_precision(gt, pred, threshold=thresholds)
+    mean_ap = float(np.mean(ap))  # Average over thresholds
 
     pred_labels = np.unique(pred[pred > 0])
     gt_labels = np.unique(gt[gt > 0])
