@@ -104,7 +104,7 @@ def get_ground_truth_path(ground_truth_folder: str, mask_number: str) -> str:
     try:
         # The data directory should be inside the evaluatesegmask package
         data_path = files('evaluatesegmask') / 'data' / ground_truth_folder / filename
-        print(f"Looking for ground truth in package data: {data_path}")
+        # print(f"Looking for ground truth in package data: {data_path}")
         if os.path.exists(str(data_path)):
             print(f"Found ground truth file in package data")
             return str(data_path)
@@ -324,7 +324,7 @@ def evaluate_instance_segmentation(pred_path: Union[str, Path], ground_truth: st
         ValueError: If ground truth number is invalid or if dimensions don't match
     """
     pred_path = Path(pred_path)
-    print(f"\nEvaluating predictions from: {pred_path} (absolute: {pred_path.absolute()})")
+    # print(f"\nEvaluating predictions from: {pred_path} (absolute: {pred_path.absolute()})")
     
     # Validate ground truth
     if ground_truth not in ['001', '002', '003', 'all']:
