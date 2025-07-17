@@ -1,4 +1,16 @@
 from setuptools import setup, find_packages
+import os
+
+def package_files(directory):
+    """Get all file paths in directory and subdirectories."""
+    paths = []
+    for (path, directories, filenames) in os.walk(directory):
+        for filename in filenames:
+            paths.append(os.path.join('..', path, filename))
+    return paths
+
+# Get all data files
+data_files = package_files('data')
 
 setup(
     name="evaluatesegmask",
@@ -6,7 +18,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        'evaluatesegmask': ['../data/*.png'],
+        'evaluatesegmask': data_files,
     },
     install_requires=[
         "numpy",

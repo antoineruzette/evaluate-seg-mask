@@ -1,1 +1,2 @@
-recursive-include data *.png 
+recursive-include data *
+include README.md 
